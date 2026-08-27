@@ -1,0 +1,21 @@
+{
+  "name": "telegram-manual-order-miniapp",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Telegram Mini App for manual payment screenshot review and product-link delivery",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "multer": "^1.4.5-lts.1",
+    "pg": "^8.13.1",
+    "telegraf": "^4.16.3"
+  }
+}

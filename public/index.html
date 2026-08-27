@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>Telegram Shop</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    :root { color-scheme: light dark; --bg: var(--tg-theme-bg-color,#fff); --text: var(--tg-theme-text-color,#111); --hint: var(--tg-theme-hint-color,#777); --button: var(--tg-theme-button-color,#2481cc); --button-text: var(--tg-theme-button-text-color,#fff); --secondary: var(--tg-theme-secondary-bg-color,#f3f3f3); }
+    * { box-sizing: border-box; }
+    body { margin: 0; font: 16px system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; background: var(--bg); color: var(--text); }
+    .wrap { max-width: 680px; margin: auto; padding: 18px; }
+    h1 { font-size: 24px; margin: 0 0 6px; }
+    .muted { color: var(--hint); font-size: 14px; line-height: 1.45; }
+    .grid { display: grid; gap: 12px; margin-top: 18px; }
+    .card { padding: 16px; background: var(--secondary); border-radius: 16px; }
+    .row { display: flex; gap: 10px; align-items: center; justify-content: space-between; }
+    .price { font-weight: 700; font-size: 18px; }
+    button { border: 0; border-radius: 12px; padding: 12px 14px; font-weight: 700; background: var(--button); color: var(--button-text); cursor: pointer; }
+    button.secondary { background: var(--secondary); color: var(--text); outline: 1px solid color-mix(in srgb, var(--hint) 35%, transparent); }
+    input, select { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--hint) 35%, transparent); background: var(--bg); color: var(--text); font-size: 16px; }
+    label { display:block; margin: 12px 0 6px; font-weight:600; }
+    .screen { display:none; }
+    .screen.active { display:block; }
+    .payment-number { font: 700 20px ui-monospace,SFMono-Regular,Menlo,monospace; overflow-wrap:anywhere; margin:8px 0; }
+    .notice { padding:12px; border-radius:12px; background:var(--secondary); margin:12px 0; line-height:1.5; }
+    .full { width:100%; margin-top:14px; }
+    .error { color:#d33; font-weight:600; margin-top:10px; }
+    .success { text-align:center; padding:30px 8px; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <section id="shop" class="screen active">
+    <h1>Choose your product</h1>
+    <div class="muted">Payment is checked manually. Do not submit an order until you have made the transfer.</div>
+    <div id="products" class="grid"></div>
+  </section>
+
+  <section id="checkout" class="screen">
+    <button class="secondary" onclick="show('shop')">← Back</button>
+    <h1 style="margin-top:16px">Order</h1>
+    <div id="summary" class="notice"></div>
+
+    <label for="qty">Quantity</label>
+    <input id="qty" type="number" min="1" max="99" value="1" />
+
+    <h2>Payment details</h2>
+    <div class="card">
+      <div id="paymentTitle" style="font-weight:700"></div>
+      <div id="cardHolder" class="muted"></div>
+      <div id="cardNumber" class="payment-number"></div>
+      <button id="copyBtn" class="secondary" type="button">Copy number</button>
+    </div>
+    <div id="paymentNote" class="notice"></div>
+
+    <label for="shot">Payment screenshot</label>
+    <input id="shot" type="file" accept="image/jpeg,image/png,image/webp" />
+    <div class="muted">JPG, PNG or WEBP. Maximum 8 MB. Support will manually compare this with the payment received.</div>
+
+    <button id="submit" class="full" type="button">Submit order for review</button>
+    <div id="error" class="error"></div>
+  </section>
+
+  <section id="done" class="screen success">
+    <h1>✅ Order received</h1>
+    <p id="doneText"></p>
+    <div class="muted">Keep your Telegram chat with the bot open. Support will send the product link there after approval.</div>
+  </section>
+</div>
+
+<script>
+  const tg = window.Telegram?.WebApp;
+  if (tg) { tg.ready(); tg.expand(); }
+
+  let config = null;
+  let selected = null;
+
+  function show(id) {
+    document.querySelectorAll('.screen').forEach(x => x.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+  }
+
+  function money(n) { return `${n} ${config.currency}`; }
+
+  async function load() {
+    const r = await fetch('/api/config');
+    config = await r.json();
+    const root = document.getElementById('products');
+    root.innerHTML = config.products.map(p => `
+      <div class="card">
+        <div class="row"><strong>${escapeHtml(p.name)}</strong><span class="price">${money(p.price)}</span></div>
+        <p class="muted">${escapeHtml(p.description || '')}</p>
+        <button class="full" onclick="choose('${p.id}')">Order this product</button>
+      </div>`).join('');
+    document.getElementById('paymentTitle').textContent = config.payment.title;
+    document.getElementById('cardHolder').textContent = config.payment.cardHolder;
+    document.getElementById('cardNumber').textContent = config.payment.cardNumber;
+    document.getElementById('paymentNote').textContent = config.payment.note;
+  }
+
+  function escapeHtml(s='') {
+    return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  }
+
+  window.choose = function(id) {
+    selected = config.products.find(p => p.id === id);
+    document.getElementById('qty').value = 1;
+    updateSummary();
+    show('checkout');
+  }
+
+  function updateSummary() {
+    const q = Math.max(1, Number(document.getElementById('qty').value || 1));
+    document.getElementById('summary').innerHTML = `<b>${escapeHtml(selected.name)}</b> × ${q}<br>Total: <b>${money(selected.price * q)}</b>`;
+  }
+
+  document.getElementById('qty').addEventListener('input', updateSummary);
+  document.getElementById('copyBtn').addEventListener('click', async () => {
+    await navigator.clipboard.writeText(config.payment.cardNumber);
+    if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+  });
+
+  document.getElementById('submit').addEventListener('click', async () => {
+    const error = document.getElementById('error');
+    error.textContent = '';
+    const file = document.getElementById('shot').files[0];
+    const quantity = Number(document.getElementById('qty').value);
+    if (!selected) return;
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 99) return error.textContent = 'Choose a valid quantity.';
+    if (!file) return error.textContent = 'Upload your payment screenshot.';
+    if (!tg?.initData) return error.textContent = 'Please open this shop from inside the Telegram bot.';
+
+    const btn = document.getElementById('submit');
+    btn.disabled = true;
+    btn.textContent = 'Submitting…';
+
+    const form = new FormData();
+    form.append('initData', tg.initData);
+    form.append('productId', selected.id);
+    form.append('quantity', String(quantity));
+    form.append('screenshot', file);
+
+    try {
+      const r = await fetch('/api/orders', { method:'POST', body:form });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || 'Submission failed');
+      document.getElementById('doneText').textContent = `Order #${data.orderId} is waiting for manual review. Reference: ${data.reference}`;
+      show('done');
+      if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+    } catch (e) {
+      error.textContent = e.message;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Submit order for review';
+    }
+  });
+
+  load().catch(() => document.body.innerHTML = '<div class="wrap"><h1>Could not load shop.</h1></div>');
+</script>
+</body>
+</html>
