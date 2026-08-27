@@ -1,0 +1,26 @@
+name = "telegram-order-shop"
+compatibility_date = "2026-08-27"
+pages_build_output_dir = "public"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "telegram-orders"
+database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+
+[vars]
+PUBLIC_URL = "https://YOUR_PROJECT.pages.dev"
+ADMIN_TELEGRAM_ID = "123456789"
+BOT_USERNAME = "your_bot_username"
+CURRENCY = "USD"
+
+PAYMENT_LABEL = "Card / bank transfer number"
+PAYMENT_NUMBER = "0000 0000 0000 0000"
+PAYMENT_HOLDER = "YOUR NAME"
+PAYMENT_NOTE = "Pay the exact total, then upload a screenshot of the completed transfer."
+
+PRODUCTS_JSON = '''[
+  {"id":"p1","name":"Product One","description":"First product","price":10},
+  {"id":"p2","name":"Product Two","description":"Second product","price":20},
+  {"id":"p3","name":"Product Three","description":"Third product","price":30},
+  {"id":"p4","name":"Product Four","description":"Fourth product","price":40}
+]'''
