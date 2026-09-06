@@ -5,7 +5,7 @@ pages_build_output_dir = "public"
 [[d1_databases]]
 binding = "DB"
 database_name = "telegram-orders"
-database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+database_id = "d888ecc7-5efa-4b4f-8242-0611ff66ccbb"
 
 [vars]
 PUBLIC_URL = "https://YOUR_PROJECT.pages.dev"
@@ -14,8 +14,8 @@ BOT_USERNAME = "your_bot_username"
 CURRENCY = "USD"
 
 PAYMENT_LABEL = "Card / bank transfer number"
-PAYMENT_NUMBER = "0000 0000 0000 0000"
-PAYMENT_HOLDER = "YOUR NAME"
+PAYMENT_NUMBER = "6221 0612 2847 6919"
+PAYMENT_HOLDER = "akbar abdi"
 PAYMENT_NOTE = "Pay the exact total, then upload a screenshot of the completed transfer."
 
 PRODUCTS_JSON = '''[
