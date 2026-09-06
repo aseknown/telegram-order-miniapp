@@ -8,9 +8,9 @@ database_name = "telegram-orders"
 database_id = "d888ecc7-5efa-4b4f-8242-0611ff66ccbb"
 
 [vars]
-PUBLIC_URL = "https://YOUR_PROJECT.pages.dev"
-ADMIN_TELEGRAM_ID = "123456789"
-BOT_USERNAME = "your_bot_username"
+PUBLIC_URL = "https://telegram-order-miniapp.hosseinsam72.workers.dev"
+ADMIN_TELEGRAM_ID = "aseknown"
+BOT_USERNAME = "aseknownbot"
 CURRENCY = "USD"
 
 PAYMENT_LABEL = "Card / bank transfer number"
