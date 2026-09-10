@@ -2,6 +2,8 @@
 
 Runs the Mini App, API and D1 order database on Cloudflare Pages.
 
+> **Marketplace update:** Start with [MARKETPLACE.md](MARKETPLACE.md) for the multi-shop implementation, phone registration, WooCommerce connector, migrations and release gaps. The single-shop instructions below describe the legacy flow; legacy order submission is now disabled unless `LEGACY_CHECKOUT_ENABLED=true`.
+
 ## Order flow
 
 Customer:

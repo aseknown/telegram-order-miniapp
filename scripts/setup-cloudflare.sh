@@ -33,16 +33,18 @@ if [ -z "${DB_ID:-}" ]; then
 fi
 
 echo "==> Updating wrangler.toml database_id"
-node - "$DB_ID" <<'NODE'
+node --input-type=commonjs - "$DB_ID" <<'NODE'
 const fs = require("fs");
 const id = process.argv[2];
-let s = fs.readFileSync("wrangler.toml","utf8");
-s = s.replace(/database_id\s*=\s*"[^"]*"/, `database_id = "${id}"`);
-fs.writeFileSync("wrangler.toml", s);
+for (const file of ["wrangler.toml", "wrangler.notifications.toml"]) {
+  let s = fs.readFileSync(file,"utf8");
+  s = s.replace(/database_id\s*=\s*"[^"]*"/, `database_id = "${id}"`);
+  fs.writeFileSync(file, s);
+}
 NODE
 
 echo "==> Applying database schema"
-npx wrangler d1 execute "$DB_NAME" --remote --file=./migrations/0001_init.sql
+npx wrangler d1 migrations apply "$DB_NAME" --remote
 
 echo "==> Initial deploy"
 npx wrangler pages deploy public --project-name="$PROJECT_NAME"

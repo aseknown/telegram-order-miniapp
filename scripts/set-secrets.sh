@@ -14,5 +14,6 @@ fi
 
 printf "%s" "$BOT_TOKEN" | npx wrangler pages secret put BOT_TOKEN --project-name="$PROJECT_NAME"
 printf "%s" "$TELEGRAM_WEBHOOK_SECRET" | npx wrangler pages secret put TELEGRAM_WEBHOOK_SECRET --project-name="$PROJECT_NAME"
+printf "%s" "$BOT_TOKEN" | npx wrangler secret put BOT_TOKEN --config=wrangler.notifications.toml
 
 echo "Secrets stored."

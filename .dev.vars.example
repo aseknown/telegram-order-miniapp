@@ -1,0 +1,5 @@
+BOT_TOKEN=
+TELEGRAM_WEBHOOK_SECRET=
+# Copy to .dev.vars for local development only. Never commit actual values.
+# Super-admin access is a database role, not a bot secret. See MARKETPLACE.md
+# and `npm run admin:manage` after the intended account has verified its phone.

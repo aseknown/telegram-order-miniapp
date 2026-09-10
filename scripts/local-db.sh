@@ -7,10 +7,9 @@ PERSIST_DIR="${PERSIST_DIR:-.wrangler/state}"
 mkdir -p "$PERSIST_DIR"
 
 echo "==> Initializing local SQLite-backed D1 emulator"
-npx wrangler d1 execute "$DB_NAME" \
+npx wrangler d1 migrations apply "$DB_NAME" \
   --local \
-  --persist-to="$PERSIST_DIR" \
-  --file=./migrations/0001_init.sql
+  --persist-to="$PERSIST_DIR"
 
 echo
 echo "Local database state is persisted under:"

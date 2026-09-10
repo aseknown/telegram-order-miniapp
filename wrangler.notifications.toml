@@ -1,0 +1,11 @@
+name = "marketplace-notifications"
+main = "workers/notifications.js"
+compatibility_date = "2026-08-27"
+
+[triggers]
+crons = ["* * * * *"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "telegram-orders"
+database_id = "d888ecc7-5efa-4b4f-8242-0611ff66ccbb"

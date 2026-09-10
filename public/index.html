@@ -1,67 +1,22 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <title>Telegram Shop</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Shopline · Independent stores, one account</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
   <main class="wrap">
-    <header class="hero">
-      <div>
-        <div class="eyebrow">TELEGRAM SHOP</div>
-        <h1>Choose a product</h1>
-        <p class="muted">Place your order, transfer payment manually, and upload your receipt.</p>
-      </div>
-    </header>
-
-    <div id="alert" class="alert hidden"></div>
-    <section id="products" class="grid"></section>
-
-    <section id="checkout" class="panel hidden">
-      <button class="back" id="backBtn">← Back to products</button>
-      <h2>Order</h2>
-      <div id="orderSummary" class="summary"></div>
-
-      <label>
-        Quantity
-        <div class="qty">
-          <button id="minusBtn" type="button">−</button>
-          <input id="qtyInput" type="number" min="1" max="20" value="1" />
-          <button id="plusBtn" type="button">+</button>
-        </div>
-      </label>
-
-      <div class="payment">
-        <div class="eyebrow">MANUAL PAYMENT</div>
-        <div class="payment-row">
-          <span id="paymentLabel">Payment number</span>
-          <strong id="paymentNumber"></strong>
-          <button type="button" class="secondary" id="copyBtn">Copy</button>
-        </div>
-        <p><strong>Holder:</strong> <span id="paymentHolder"></span></p>
-        <p class="muted" id="paymentNote"></p>
-      </div>
-
-      <label>
-        Payment screenshot
-        <input id="receiptInput" type="file" accept="image/jpeg,image/png,image/webp" />
-        <span class="hint">JPG, PNG or WebP. Maximum 10 MB.</span>
-      </label>
-
-      <button id="submitBtn" class="primary" type="button">Submit order</button>
-    </section>
-
-    <section id="success" class="panel hidden">
-      <div class="success-icon">✓</div>
-      <h2>Order received</h2>
-      <p id="successText"></p>
-      <p class="muted">Support will manually verify the transfer. Your product link will be sent by the Telegram bot only after approval.</p>
-      <button id="closeBtn" class="primary" type="button">Close</button>
-    </section>
+    <nav><a class="brand" href="/">shopline<span>●</span></a><div class="actions"><a href="/pricing">Pricing</a><a href="/merchant">Your store ↗</a></div></nav>
+    <header class="hero"><div class="eyebrow">INDEPENDENT STORES. ONE ACCOUNT.</div><h1 id="heading">Find your next favourite.</h1><p id="intro" class="muted">Shop directly with independent sellers. Browse, pay your store, and keep every order in one place.</p></header>
+    <div id="alert" class="alert hidden" role="alert"></div>
+    <section class="account panel"><div><strong id="accountName">One phone. Every shop.</strong><p id="accountHint" class="muted">Open in Telegram to verify your phone and place orders.</p></div><div id="accountActions" class="actions"></div></section>
+    <section id="content"></section>
+    <section id="history" class="hidden"><h2>Your orders</h2><div id="historyList"></div></section>
+    <footer>Made for independent stores · Payments reviewed by your seller</footer>
   </main>
-  <script src="/app.js"></script>
+  <script src="/app.js" type="module"></script>
 </body>
 </html>

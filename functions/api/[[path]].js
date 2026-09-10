@@ -1,8 +1,12 @@
+import { marketplace, verifyContact } from '../../lib/marketplace.js';
+
 const enc = new TextEncoder();
 
 export async function onRequest(context) {
   const path = new URL(context.request.url).pathname;
   try {
+    const response = await marketplace(context, validateTelegramInitData);
+    if (response) return response;
     if (path === "/api/config" && context.request.method === "GET") {
       return json({
         products: getProducts(context.env),
@@ -16,11 +20,11 @@ export async function onRequest(context) {
         botUsername: context.env.BOT_USERNAME || ""
       });
     }
-    if (path === "/api/order" && context.request.method === "POST") return submitOrder(context);
-    if (path === "/api/telegram" && context.request.method === "POST") return telegramWebhook(context);
+    if (path === "/api/order" && context.request.method === "POST") return await submitOrder(context);
+    if (path === "/api/telegram" && context.request.method === "POST") return await telegramWebhook(context);
     return json({ error: "Not found" }, 404);
   } catch (err) {
-    console.error(err);
+    console.error('api_request_failed', { path, name: err.name });
     return json({ error: "Server error" }, 500);
   }
 }
@@ -39,7 +43,9 @@ function getProducts(env) {
 
 async function submitOrder(context) {
   const env = context.env;
-  if (!env.BOT_TOKEN || !env.ADMIN_TELEGRAM_ID) return json({ error: "Bot/admin secrets are not configured." }, 500);
+  if (env.LEGACY_CHECKOUT_ENABLED !== 'true') return json({ error: 'Use a marketplace shop link to submit orders.' },410);
+  if (!env.BOT_TOKEN) return json({ error: "Checkout is unavailable. Configure BOT_TOKEN in this Cloudflare deployment's secrets, then redeploy." }, 503);
+  if (!env.ADMIN_TELEGRAM_ID) return json({ error: "Checkout is unavailable. Configure ADMIN_TELEGRAM_ID for the legacy shop, then redeploy." }, 503);
 
   const form = await context.request.formData();
   const initData = String(form.get("initData") || "");
@@ -120,6 +126,31 @@ async function handleMessage(message, env) {
   const adminId = String(env.ADMIN_TELEGRAM_ID || "");
   const text = String(message.text || "").trim();
   if (!fromId) return;
+
+  const contactReply = await verifyContact(message, env);
+  if (contactReply) {
+    await telegram(env.BOT_TOKEN, 'sendMessage', { chat_id: fromId, text: contactReply });
+    return;
+  }
+  if (message.chat?.type === 'private' && (text.startsWith('/start') || text === '/phone')) {
+    const slug = text.split(/\s+/)[1];
+    const shopPath = slug && /^[a-z0-9][a-z0-9_-]{2,39}$/.test(slug) ? '/' + slug : '/';
+    await telegram(env.BOT_TOKEN, 'sendMessage', {
+      chat_id: fromId,
+      text: 'Share your phone to use one account across all shops. Then open the marketplace.',
+      reply_markup: { keyboard: [[{ text: 'Share my phone', request_contact: true }]], resize_keyboard: true, one_time_keyboard: true }
+    });
+    await telegram(env.BOT_TOKEN, 'sendMessage', {
+      chat_id: fromId, text: 'Open your shop or manage your store:',
+      reply_markup: { inline_keyboard: [[{ text: 'Open marketplace', web_app: {url: new URL(shopPath,env.PUBLIC_URL).href} }]] }
+    });
+    return;
+  }
+
+  if (env.LEGACY_CHECKOUT_ENABLED !== 'true') {
+    if(message.chat?.type === 'private') await telegram(env.BOT_TOKEN,'sendMessage',{chat_id:fromId,text:'Open the marketplace to view your orders or manage your store. Use /phone to verify your account.'});
+    return;
+  }
 
   if (fromId === adminId) {
     const pending = await env.DB.prepare("SELECT * FROM admin_pending WHERE admin_id=?").bind(adminId).first();
@@ -299,31 +330,32 @@ async function answerCallback(env, id, text, show_alert = false) {
 
 async function telegram(token, method, payload) {
   const res = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
-    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload)
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload), signal: AbortSignal.timeout(15000)
   });
   const data = await res.json();
-  if (!res.ok || !data.ok) throw new Error(`Telegram ${method}: ${JSON.stringify(data)}`);
+  if (!res.ok || !data.ok) throw new Error(`Telegram ${method} failed (${res.status})`);
   return data;
 }
 
 async function telegramMultipart(token, method, body) {
-  const res = await fetch(`https://api.telegram.org/bot${token}/${method}`, { method: "POST", body });
+  const res = await fetch(`https://api.telegram.org/bot${token}/${method}`, { method: "POST", body, signal: AbortSignal.timeout(15000) });
   const data = await res.json();
-  if (!res.ok || !data.ok) throw new Error(`Telegram ${method}: ${JSON.stringify(data)}`);
+  if (!res.ok || !data.ok) throw new Error(`Telegram ${method} failed (${res.status})`);
   return data;
 }
 
-async function validateTelegramInitData(initData, botToken) {
+export async function validateTelegramInitData(initData, botToken) {
   if (!initData) return { ok: false, error: "Telegram initData is missing." };
   const params = new URLSearchParams(initData);
+  if ([...params.keys()].length !== new Set(params.keys()).size) return { ok:false, error:'Duplicate authentication fields.' };
   const receivedHash = params.get("hash");
   const authDate = Number(params.get("auth_date") || 0);
   if (!receivedHash) return { ok: false, error: "Telegram hash is missing." };
-  if (!authDate || Math.abs(Date.now() / 1000 - authDate) > 86400) return { ok: false, error: "Telegram session is too old. Reopen the shop." };
+  if (!Number.isInteger(authDate) || authDate > Date.now()/1000+60 || Date.now()/1000-authDate > 3600) return { ok: false, error: "Telegram session is too old. Reopen the shop." };
 
   const pairs = [];
   for (const [key, value] of params.entries()) {
-    if (key !== "hash" && key !== "signature") pairs.push(`${key}=${value}`);
+    if (key !== "hash") pairs.push(`${key}=${value}`);
   }
   pairs.sort();
   const dataCheckString = pairs.join("\n");
