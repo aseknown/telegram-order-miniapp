@@ -4,7 +4,7 @@ This repository now contains a first marketplace implementation on the existing 
 
 ## What works in this implementation
 
-- `/` lists stores and `/{username}` opens a store. Browsing works outside Telegram.
+- `/` is the shared opt-in product marketplace, `/stores` lists stores and `/{username}` opens a seller's store. Browsing works outside Telegram. Search, category, seller, currency, price range and sorting filters run server-side.
 - `/merchant` lets a verified owner create up to ten stores, edit each profile and bank-transfer details, manage products and categories, see only their own buyers and order totals, connect WooCommerce and review orders.
 - `/admin` is the super-admin dashboard for shop verification, suspension, customer/seller lookup, order/receipt investigation, failed-notification retries and pricing. Roles are stored in `platform_admins` and granted explicitly through the operator CLI; a normal signup never gets this role.
 - Shops start `PENDING`. Only `APPROVED` shops are public and can receive new orders. Changes to an approved profile require a new review. Suspension hides the store and blocks new orders while preserving historical order/support access. Review decisions require a reason and matching revision, and are audited.
@@ -12,7 +12,7 @@ This repository now contains a first marketplace implementation on the existing 
 - `/pricing` displays published plans. Free is fixed at 10 retained products per shop, across manual and WooCommerce products. Hidden products count; archived products do not. Database triggers enforce the limit under concurrent requests. Pro is initially an unpublished 100-product draft with no price; an admin must choose and publish its monthly price.
 - Every customer has a global UUID, a unique international phone number and a unique Telegram identity. The same account can buy from any shop and own shops.
 - Phone registration trusts only a bot webhook protected with `TELEGRAM_WEBHOOK_SECRET`, a private chat, and a contact whose `user_id` equals the sender. Client-side contact fields are never trusted. Existing account conflicts require recovery; they never silently merge accounts or transfer shop ownership.
-- Server-validated Telegram `initData` authenticates customer and merchant API requests, with a one-hour freshness limit. Ordinary-browser SMS authentication is not implemented.
+- Server-validated Telegram `initData` is exchanged at `POST /api/v1/auth/session` for a revocable one-hour bearer session. Application APIs require that token; raw Telegram data is accepted only at the exchange. Tokens remain in page memory. Session and permission checks run server-side on every request. Ordinary-browser SMS authentication is not implemented.
 - Shop ownership scopes product edits, order reviews, integration tokens and attachment downloads. Customer histories are restricted to their own orders.
 - Orders save price, product name, currency and bank details as snapshots. Amounts use integer minor units. Supported currencies currently use a fixed two-decimal display; IRR is rial, not toman.
 - A D1 transaction saves the order, 1–3 attachment BLOBs and Telegram notification jobs. Each attachment is at most 1 MB. File headers and MIME types are checked. Files are served as authenticated downloads, never public URLs.
@@ -56,7 +56,7 @@ Changing a paid plan's product limit affects its current members; changing its p
 
 The previous `/api/order` checked `BOT_TOKEN` and `ADMIN_TELEGRAM_ID` before reading the upload. Missing deployment configuration caused the error; it was not an image-format diagnosis.
 
-Check the Cloudflare application serving the exact URL customers use. `wrangler.toml` currently describes a **Pages** project, while its `PUBLIC_URL` ends in `workers.dev`. Verify whether that host serves this Pages deployment or a separate Worker; secrets saved to another application do not apply. Also distinguish production from preview environments.
+Check the Cloudflare application serving the exact URL customers use. `wrangler.toml` now uses its verified `telegram-order-shop.pages.dev` domain. The old `workers.dev` address did not serve the JSON API. Secrets saved to a different application do not apply. Also distinguish production from preview environments. See [LAUNCH.md](LAUNCH.md) for current live-check results and missing setup.
 
 For the Pages project, configure encrypted secrets without putting values in source code or chat:
 
@@ -83,7 +83,7 @@ npm.cmd run build:check
 npm.cmd run dev
 ```
 
-Keep `.dev.vars` private. Do not use a production bot for automated tests. Tests use an in-memory SQLite database, real migrations, the real HMAC validator and mocked Telegram transport. The 27 tests cover authorization, identity conflicts, money validation, idempotency, rollback, private receipt access, review state, token isolation, stale sync updates, notification retries, shop moderation, concurrent quotas, plan expiry, categories, scoped customer lists and support privacy. The Functions build and all three migrations also passed on an isolated local Cloudflare D1 database.
+Keep `.dev.vars` private. Do not use a production bot for automated tests. Tests use an in-memory SQLite database, real migrations, the real HMAC validator and mocked Telegram transport. The 34 tests cover authorization, identity conflicts, money validation, idempotency, rollback, private receipts, reviews, token isolation, sync, retries, moderation, quotas, plan expiry, categories, customer lists, support privacy, public placement, filtering, sessions and permissions. See [LAUNCH.md](LAUNCH.md) for deployment checks.
 
 ## WooCommerce connector
 

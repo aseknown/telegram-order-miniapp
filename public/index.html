@@ -4,19 +4,27 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <title>Shopline · Independent stores, one account</title>
+  <meta name="description" content="Discover independent shops, order directly from sellers, and manage your store with one verified account. Start selling with 10 products for free.">
+  <meta name="theme-color" content="#172b28">
+  <meta property="og:title" content="Shopline — Independent shops, one place">
+  <meta property="og:description" content="Discover products from independent sellers. Create your own store with 10 products for free.">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
+  <a class="skip-link" href="#content">Skip to products</a>
+  <div class="loading-bar" aria-hidden="true"></div>
   <main class="wrap">
-    <nav><a class="brand" href="/">shopline<span>●</span></a><div class="actions"><a href="/pricing">Pricing</a><a href="/merchant">Your store ↗</a></div></nav>
-    <header class="hero"><div class="eyebrow">INDEPENDENT STORES. ONE ACCOUNT.</div><h1 id="heading">Find your next favourite.</h1><p id="intro" class="muted">Shop directly with independent sellers. Browse, pay your store, and keep every order in one place.</p></header>
+    <nav class="main-nav" aria-label="Main navigation"><a class="brand" href="/"><span class="brand-mark">s.</span>shopline</a><div class="nav-links"><a href="/">Discover</a><a href="/stores">Stores</a><a href="/pricing">Pricing</a></div><a class="nav-cta" href="/merchant">Your workspace <span>↗</span></a></nav>
+    <header class="hero"><div class="hero-copy"><div class="eyebrow">SMALL SHOPS. MORE POSSIBILITIES.</div><h1 id="heading">Good finds. Independent minds.</h1><p id="intro" class="muted">Discover products from independent shops. Pay your seller directly and track every order in one place.</p><div class="hero-tags"><span>✓ Approved stores</span><span>↗ Direct to seller</span><span>◎ One account</span></div></div><a href="/merchant" class="seller-note"><span class="eyebrow">MADE FOR YOUR NEXT CHAPTER</span><strong>Your products.<br>Your own store.</strong><span>Start with 10 products, free.</span><span class="note-arrow">↗</span></a></header>
     <div id="alert" class="alert hidden" role="alert"></div>
     <section class="account panel"><div><strong id="accountName">One phone. Every shop.</strong><p id="accountHint" class="muted">Open in Telegram to verify your phone and place orders.</p></div><div id="accountActions" class="actions"></div></section>
-    <section id="content"></section>
+    <section id="content" tabindex="-1" aria-label="Main content"></section>
     <section id="history" class="hidden"><h2>Your orders</h2><div id="historyList"></div></section>
-    <footer>Made for independent stores · Payments reviewed by your seller</footer>
+    <footer><a class="brand" href="/">shopline.</a><span>Independent stores. Personal connections.</span><div class="actions"><a href="/support">Support</a><a href="/security">Your sessions</a><a href="/pricing">Start selling</a></div></footer>
   </main>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <noscript>This store needs JavaScript to load products and securely manage orders.</noscript>
   <script src="/app.js" type="module"></script>
 </body>
 </html>

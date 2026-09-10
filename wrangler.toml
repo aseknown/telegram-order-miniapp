@@ -8,7 +8,7 @@ database_name = "telegram-orders"
 database_id = "d888ecc7-5efa-4b4f-8242-0611ff66ccbb"
 
 [vars]
-PUBLIC_URL = "https://telegram-order-miniapp.hosseinsam72.workers.dev"
+PUBLIC_URL = "https://telegram-order-shop.pages.dev"
 ADMIN_TELEGRAM_ID = "228957809"
 BOT_USERNAME = "aseknownbot"
 CURRENCY = "USD"

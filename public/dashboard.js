@@ -67,7 +67,7 @@ export function createManagementUI(ui) {
     signedIn(); if(!state.me.isSuperAdmin) throw new Error('Super admin access required.');
     heading('Platform administration','Review shops, manage plans and help buyers and sellers.');
     const tabs=text('div','','actions');
-    for(const [key,label] of [['shops','Shop reviews'],['orders','Orders'],['customers','Customers & sellers'],['plans','Pricing plans']]) tabs.append(button(label,()=>adminDashboard(key)));
+    for(const [key,label] of [['shops','Shop reviews'],['orders','Orders'],['customers','Customers & sellers'],['plans','Pricing plans'],['permissions','Permissions']]) tabs.append(button(label,()=>adminDashboard(key)));
     tabs.append(button('Support inbox',()=>supportDashboard())); content().append(tabs);
     if(section==='shops') {
       const stats=await api('/admin/overview');
@@ -103,6 +103,18 @@ export function createManagementUI(ui) {
         const published=field(form,'published','Publish on pricing page',plan.published,{type:'checkbox'});
         formSubmit(form,'Save pricing',async()=>{const body=Object.fromEntries(new FormData(form)); delete body.price; body.monthly_price_minor=Math.round(Number(price.value)*100); body.product_limit=Number(body.product_limit); body.published=published.checked; body.revision=plan.revision; await api('/admin/plans/'+plan.id,{method:'PATCH',body}); await adminDashboard('plans');}); content().append(form);
       }
+    }
+    if(section==='permissions') {
+      const data=await api('/admin/permissions');
+      const roles=text('div','','grid'); for(const role of data.roles) roles.append(append(text('article','','card'),text('h3',role.name),text('p',role.permissions,'muted'))); content().append(roles);
+      content().append(text('h2','Platform administrators'));
+      for(const admin of data.admins) {
+        const form=append(text('form','','panel'),text('h3',admin.name),text('p',admin.phone)); field(form,'note','Reason for removing access','',{maxLength:500,required:true});
+        formSubmit(form,'Remove admin access',async()=>{await api('/admin/permissions',{method:'PATCH',body:{phone:admin.phone,admin:false,expected_admin:true,note:new FormData(form).get('note')}}); await adminDashboard('permissions');}); content().append(form);
+      }
+      const form=append(text('form','','panel'),text('h3','Grant platform admin access'),text('p','This gives access to all stores, customer records, receipts and support tickets. Grant only to a trusted operator.','hint'));
+      field(form,'phone','Verified international phone','',{required:true,pattern:'\\+[1-9][0-9]{7,14}',placeholder:'+447…'}); field(form,'note','Grant reason','',{required:true,maxLength:500});
+      formSubmit(form,'Grant admin access',async()=>{await api('/admin/permissions',{method:'PATCH',body:{...Object.fromEntries(new FormData(form)),admin:true,expected_admin:false}}); await adminDashboard('permissions');}); content().append(form);
     }
     if(section==='orders') {
       search(content(),'Search order ID, customer name or phone',(p,q)=>adminDashboard('orders',p,'',q));

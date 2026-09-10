@@ -5,12 +5,13 @@ import { readFileSync } from 'node:fs';
 import { marketplace, verifyContact, priceMinor, phoneValue, slugValue, detectImage, digest } from '../lib/marketplace.js';
 import { validateTelegramInitData, onRequest } from '../functions/api/[[path]].js';
 import { deliverNotifications } from '../lib/notifications.js';
+import { createRequestScope } from '../public/request-client.js';
 
 class D1 {
   constructor() {
     this.sqlite = new DatabaseSync(':memory:');
     this.sqlite.exec('PRAGMA foreign_keys=ON');
-    for (const migration of ['0001_init.sql','0002_marketplace.sql','0003_shop_management.sql']) this.sqlite.exec(readFileSync(new URL('../migrations/'+migration,import.meta.url),'utf8'));
+    for (const migration of ['0001_init.sql','0002_marketplace.sql','0003_shop_management.sql','0004_public_catalog_sessions.sql']) this.sqlite.exec(readFileSync(new URL('../migrations/'+migration,import.meta.url),'utf8'));
   }
   prepare(sql) {
     const db=this.sqlite; let values=[];
@@ -44,13 +45,18 @@ function fixture() {
     INSERT INTO shops (id,slug,owner_id,name,description,currency,payment_number,payment_holder,payment_note,created_at,status) VALUES ('s1','first-shop','c1','First','','USD','1234567812345678','Owner','',1,'APPROVED'),('s2','other-shop','c3','Other','','USD','2222222222222222','Other','',1,'APPROVED');
     INSERT INTO products (id,shop_id,source_id,name,description,price_minor,active,source_version) VALUES ('p1','s1',NULL,'Product','',1234,1,0),('p2','s2',NULL,'Other','',9876,1,0);`);
   const pending=[];
+  const authTokens=new Map();
   const call=async(path,{method='GET',body,user=2,headers={},...rest}={})=>{
-    const h=new Headers(headers); h.set('authorization','Telegram '+await initData(user));
+    if(!authTokens.has(user)) {
+      const result=await marketplace({env,request:new Request('https://market.example/api/v1/auth/session',{method:'POST',headers:{authorization:'Telegram '+await initData(user)}})},validateTelegramInitData);
+      authTokens.set(user,(await result.json()).token || '');
+    }
+    const h=new Headers(headers); h.set('authorization','Bearer '+authTokens.get(user));
     if(body && !(body instanceof FormData)) {h.set('content-type','application/json'); body=JSON.stringify(body);}
     const request=new Request('https://market.example/api/v1'+path,{method,headers:h,body,...rest});
     return marketplace({request,env,waitUntil:p=>pending.push(p)},validateTelegramInitData);
   };
-  return {env,call,pending};
+  return {env,call,pending,authTokens};
 }
 const png=new Uint8Array([137,80,78,71,13,10,26,10,1,2,3]);
 function orderForm(shop='s1',product='p1',note='') {
@@ -91,7 +97,7 @@ test('merchant product and order endpoints enforce ownership',async()=>{
   assert.equal((await call('/merchant/s1/orders',{user:3})).status,404);
   assert.equal((await call('/merchant/s1/products',{user:1,method:'POST',body:{name:'Manual',price:'2.50'}})).status,201);
   assert.equal((await call('/merchant/s2/products/p1',{user:3,method:'PATCH',body:{name:'Stolen',price:'0'}})).status,404);
-  assert.equal((await call('/shops',{user:4,method:'POST',body:{}})).status,403);
+  assert.equal((await call('/shops',{user:4,method:'POST',body:{}})).status,401);
 });
 test('shop creation persists bank profile, duplicate username conflicts and currency is immutable',async()=>{
   const {call,env}=fixture(); const body={slug:'new-store',name:'New',currency:'USD',payment_number:'1111222233334444',payment_holder:'Owner'};
@@ -321,4 +327,66 @@ test('management migration upgrades an existing marketplace without deleting sho
   assert.equal(db.prepare('SELECT status FROM shops').get().status,'PENDING');
   assert.equal(db.prepare('SELECT product_limit FROM shop_entitlements').get().product_limit,10);
   db.close();
+});
+test('public catalog is explicit opt-in, tenant scoped and removed when a shop is suspended',async()=>{
+  const {call,env}=fixture();
+  assert.equal((await (await call('/catalog')).json()).products.length,0);
+  assert.equal((await call('/merchant/s1/products/p1',{method:'PATCH',user:3,body:{isPublic:true}})).status,404);
+  assert.equal((await call('/merchant/s1/products/p1',{method:'PATCH',user:1,body:{isPublic:'true'}})).status,400);
+  await call('/merchant/s1/products/p1',{method:'PATCH',user:1,body:{isPublic:true}});
+  const catalog=await (await call('/catalog')).json(); assert.equal(catalog.products.length,1); assert.equal(catalog.products[0].shop_slug,'first-shop');
+  env.DB.sqlite.exec("UPDATE shops SET status='SUSPENDED' WHERE id='s1'");
+  assert.equal((await (await call('/catalog')).json()).products.length,0);
+});
+test('catalog filters validate currency, price range, sort and seller boundaries',async()=>{
+  const {call}=fixture();
+  await call('/merchant/s1/products/p1',{method:'PATCH',user:1,body:{isPublic:true}});
+  assert.equal((await call('/catalog?sort=price_asc')).status,400);
+  assert.equal((await call('/catalog?currency=USD&min=20&max=10')).status,400);
+  assert.equal((await call('/catalog?sort=unknown')).status,400);
+  assert.equal((await (await call('/catalog?currency=USD&min=12&max=13&q=product&sort=price_asc')).json()).total,1);
+  assert.equal((await (await call('/catalog?seller=other-shop')).json()).total,0);
+  assert.equal((await (await call('/shops/first-shop?min=13')).json()).total,0);
+  assert.equal((await (await call('/shops/first-shop?sort=price_desc')).json()).total,1);
+});
+test('WooCommerce sync cannot opt a product in or reset a seller visibility choice',async()=>{
+  const {call,env}=fixture(); const {token}=await (await call('/merchant/s1/integration',{method:'POST',user:1})).json();
+  const send=body=>marketplace({env,request:new Request('https://market.example/api/v1/integrations/woocommerce',{method:'POST',headers:{authorization:'Bearer '+token,'content-type':'application/json'},body:JSON.stringify(body)})},validateTelegramInitData);
+  const body={source_id:'201',name:'Imported',price:'5',currency:'USD',version:1,isPublic:true}; await send(body);
+  const product=env.DB.sqlite.prepare("SELECT * FROM products WHERE source_id='201'").get(); assert.equal(product.is_public,0);
+  await call('/merchant/s1/products/'+product.id,{user:1,method:'PATCH',body:{isPublic:true}});
+  await send({...body,version:2,isPublic:false}); assert.equal(env.DB.sqlite.prepare('SELECT is_public FROM products WHERE id=?').get(product.id).is_public,1);
+});
+test('session revocation is immediate and a revoked Telegram proof cannot reissue access',async()=>{
+  const {call,env}=fixture();
+  const proof=await initData(2,{query_id:'revocation-test'});
+  const exchange=()=>marketplace({env,request:new Request('https://market.example/api/v1/auth/session',{method:'POST',headers:{authorization:'Telegram '+proof}})},validateTelegramInitData);
+  const first=await (await exchange()).json(); const second=await (await exchange()).json(); assert.equal(first.token,second.token);
+  await call('/sessions/'+first.sessionId,{method:'DELETE'});
+  assert.equal((await exchange()).status,401);
+  const response=await marketplace({env,request:new Request('https://market.example/api/v1/me',{headers:{authorization:'Bearer '+first.token}})},validateTelegramInitData); assert.equal(response.status,401);
+});
+test('session identities do not mix and cannot revoke another customer session',async()=>{
+  const {call,env,authTokens}=fixture(); await call('/me',{user:1}); await call('/me',{user:2});
+  assert.notEqual(authTokens.get(1),authTokens.get(2));
+  const sessions=await (await call('/sessions',{user:1})).json();
+  assert.equal((await (await call('/sessions/'+sessions.currentSessionId,{method:'DELETE',user:2})).json()).revoked,0);
+  assert.equal((await (await call('/me',{user:1})).json()).customer.id,'c1');
+  const raw=await marketplace({env,request:new Request('https://market.example/api/v1/me',{headers:{authorization:'Telegram '+await initData(1)}})},validateTelegramInitData); assert.equal(raw.status,401);
+  env.DB.sqlite.exec("UPDATE auth_sessions SET expires_at=1 WHERE customer_id='c1'"); assert.equal((await call('/me',{user:1})).status,401);
+});
+test('permission manager protects the last admin and revokes sessions on demotion',async()=>{
+  const {call,env}=fixture(); grantAdmin(env);
+  const endpoint='/admin/permissions';
+  assert.equal((await call(endpoint,{user:1})).status,403);
+  assert.equal((await call(endpoint,{user:9,method:'PATCH',body:{phone:'+447700900009',admin:false,expected_admin:true,note:'Test'}})).status,409);
+  assert.equal((await call(endpoint,{user:9,method:'PATCH',body:{phone:'+447700900001',admin:true,expected_admin:false,note:'Trusted operator'}})).status,200);
+  assert.equal((await call('/admin/overview',{user:1})).status,200);
+  assert.equal((await call(endpoint,{user:9,method:'PATCH',body:{phone:'+447700900001',admin:false,expected_admin:true,note:'Access ended'}})).status,200);
+  assert.equal((await call('/admin/overview',{user:1})).status,401);
+});
+test('stale view requests are cancelled and cannot apply a late response',()=>{
+  const scope=createRequestScope(); const first=scope.begin(); const capture=scope.capture(); scope.begin();
+  assert.equal(scope.current(first),false); assert.equal(capture.signal.aborted,true);
+  assert.throws(()=>capture.assertCurrent(),{name:'AbortError'}); assert.doesNotThrow(()=>scope.capture().assertCurrent());
 });

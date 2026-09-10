@@ -10,6 +10,7 @@
     "test": "node --test tests/*.test.js",
     "build:check": "wrangler pages functions build functions --outdir=.wrangler/build-check",
     "admin:manage": "node scripts/manage-admin.mjs",
+    "launch:check": "node scripts/launch-check.mjs",
     "notifications:deploy": "wrangler deploy --config wrangler.notifications.toml",
     "deploy": "wrangler pages deploy public --project-name=telegram-order-shop",
     "cf:setup": "bash scripts/setup-cloudflare.sh",
