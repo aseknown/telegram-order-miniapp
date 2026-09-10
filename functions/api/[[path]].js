@@ -129,10 +129,13 @@ async function handleMessage(message, env) {
 
   const contactReply = await verifyContact(message, env);
   if (contactReply) {
-    await telegram(env.BOT_TOKEN, 'sendMessage', { chat_id: fromId, text: contactReply });
+    const appUrl = (() => { try { return new URL('/', env.PUBLIC_URL).href; } catch { return null; } })();
+    const payload = { chat_id: fromId, text: contactReply };
+    if (appUrl) payload.reply_markup = { inline_keyboard: [[{ text: 'Open marketplace', web_app: { url: appUrl } }]] };
+    await telegram(env.BOT_TOKEN, 'sendMessage', payload);
     return;
   }
-  if (message.chat?.type === 'private' && (text.startsWith('/start') || text === '/phone')) {
+  if (message.chat?.type === 'private' && fromId !== adminId && (text.startsWith('/start') || text === '/phone')) {
     const slug = text.split(/\s+/)[1];
     const shopPath = slug && /^[a-z0-9][a-z0-9_-]{2,39}$/.test(slug) ? '/' + slug : '/';
     await telegram(env.BOT_TOKEN, 'sendMessage', {
@@ -147,11 +150,9 @@ async function handleMessage(message, env) {
     return;
   }
 
-  if (env.LEGACY_CHECKOUT_ENABLED !== 'true') {
-    if(message.chat?.type === 'private') await telegram(env.BOT_TOKEN,'sendMessage',{chat_id:fromId,text:'Open the marketplace to view your orders or manage your store. Use /phone to verify your account.'});
-    return;
-  }
-
+  // Admin commands and replies are part of the webhook control plane, not
+  // the legacy checkout. They must remain available when legacy checkout is
+  // disabled (the marketplace uses the same bot).
   if (fromId === adminId) {
     const pending = await env.DB.prepare("SELECT * FROM admin_pending WHERE admin_id=?").bind(adminId).first();
 
@@ -187,6 +188,11 @@ async function handleMessage(message, env) {
     if (text === "/start") {
       await telegram(env.BOT_TOKEN, "sendMessage", { chat_id: adminId, text: "Admin mode is ready. New orders will appear here." });
     }
+    return;
+  }
+
+  if (env.LEGACY_CHECKOUT_ENABLED !== 'true') {
+    if(message.chat?.type === 'private') await telegram(env.BOT_TOKEN,'sendMessage',{chat_id:fromId,text:'Open the marketplace to view your orders or manage your store. Use /phone to verify your account.'});
     return;
   }
 

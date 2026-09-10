@@ -33,7 +33,7 @@ The local implementation is ready for deployment testing. It is **not yet a veri
    npm.cmd run notifications:deploy
    npx.cmd wrangler secret put BOT_TOKEN --config wrangler.notifications.toml
    ```
-
+a
    Pages and the scheduler use the same bot but separate secret stores. Apply all migrations before deploying this frontend. Existing shops become pending after migration 0003; migration 0004 introduces sessions. Check older shop slugs against reserved `/stores`, `/pricing`, `/support` and `/security` paths.
 4. Register `https://telegram-order-shop.pages.dev/api/telegram` as the webhook using the matching secret. Open `/start`, share your phone and verify account registration. Grant the intended verified account super-admin access using `npm run admin:manage` (see MARKETPLACE.md).
 5. Approve shops, configure paid pricing if desired, and opt selected products into the shared catalog. Complete a real test order: receipt saved, correct seller notified, other seller denied, review completed, customer updated. Verify scheduled retry after a Telegram failure and WooCommerce import/update/archive at the product limit. Check mobile/desktop Telegram layouts, keyboard access and reduced-motion behavior.

@@ -188,7 +188,7 @@ Check deployments:
 npx.cmd wrangler pages deployment list --project-name=telegram-order-shop
 npx.cmd wrangler deployments list --config wrangler.notifications.toml
 ```
-
+d
 ## 7. Register the Telegram webhook
 
 Set environment variables only in the current PowerShell session:
@@ -241,7 +241,7 @@ Then grant the role:
 
 ```powershell
 npm.cmd run admin:manage -- grant `
-  --telegram-id YOUR_NUMERIC_TELEGRAM_ID `
+  --telegram-id 228957809 `
   --remote
 ```
 
@@ -255,7 +255,7 @@ Use `revoke` to remove access:
 
 ```powershell
 npm.cmd run admin:manage -- revoke `
-  --telegram-id YOUR_NUMERIC_TELEGRAM_ID `
+  --telegram-id 228957809 `
   --remote
 ```
 

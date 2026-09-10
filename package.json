@@ -15,7 +15,7 @@
     "deploy": "wrangler pages deploy public --project-name=telegram-order-shop",
     "cf:setup": "bash scripts/setup-cloudflare.sh",
     "cf:secrets": "bash scripts/set-secrets.sh",
-    "cf:webhook": "bash scripts/set-webhook.sh",
+    "cf:webhook": "node scripts/set-webhook.mjs",
     "cf:deploy": "bash scripts/deploy.sh",
     "db:local:persist": "bash scripts/local-db.sh"
   },

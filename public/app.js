@@ -41,6 +41,31 @@ async function api(path,options={}) {
 }
 function money(value,currency) {return `${(value/100).toFixed(2)} ${currency}`;}
 function signedIn() {if(!state.me?.customer) throw new Error('Verify your phone with the bot and refresh your account first.');}
+const MAX_COMPRESSED_ATTACHMENT=900*1024;
+async function imageBlob(canvas,mime,quality) {
+  return await new Promise((resolve,reject)=>canvas.toBlob(blob=>blob ? resolve(blob) : reject(new Error('Your browser could not compress this image.')),mime,quality));
+}
+async function compressImage(file) {
+  if(!file.type.startsWith('image/') || file.size<=MAX_COMPRESSED_ATTACHMENT) return file;
+  const url=URL.createObjectURL(file);
+  try {
+    const image=await new Promise((resolve,reject)=>{const img=new Image(); img.onload=()=>resolve(img); img.onerror=()=>reject(new Error('This image could not be read.')); img.src=url;});
+    let scale=Math.min(1,2000/Math.max(image.naturalWidth,image.naturalHeight));
+    let quality=.82; let blob;
+    for(let attempt=0; attempt<7; attempt++) {
+      const canvas=document.createElement('canvas'); canvas.width=Math.max(1,Math.round(image.naturalWidth*scale)); canvas.height=Math.max(1,Math.round(image.naturalHeight*scale));
+      const ctx=canvas.getContext('2d',{alpha:false}); ctx.drawImage(image,0,0,canvas.width,canvas.height);
+      try { blob=await imageBlob(canvas,'image/webp',quality); }
+      catch { blob=await imageBlob(canvas,'image/jpeg',quality); }
+      if(blob.size<=MAX_COMPRESSED_ATTACHMENT) {
+        const extension=blob.type==='image/webp'?'webp':'jpg';
+        return new File([blob],file.name.replace(/\.[^.]+$/,'.'+extension),{type:blob.type,lastModified:Date.now()});
+      }
+      if(quality>.62) quality-=.1; else scale*=.82;
+    }
+    throw new Error(`Could not compress ${file.name} below 900 KB. Choose a smaller image.`);
+  } finally {URL.revokeObjectURL(url);}
+}
 function openBot() {
   const username=state.config?.botUsername;
   if(!/^[a-zA-Z0-9_]{5,32}$/.test(username || '')) throw new Error('The platform operator needs to configure the bot username.');
@@ -52,8 +77,18 @@ function openBot() {
 async function refreshAccount() {
   if(telegramProof && !state.token) {
     const scope=requestScope.capture();
-    const response=await fetch('/api/v1/auth/session',{method:'POST',headers:{authorization:'Telegram '+telegramProof},signal:scope.signal}); const data=await response.json(); scope.assertCurrent();
-    if(!response.ok) throw new Error(data.error || 'Could not sign in.');
+    // Telegram delivers requestContact through the webhook asynchronously.
+    // Give the webhook a short window to create the customer before showing
+    // the misleading “refresh your account first” state.
+    let data;
+    for(let attempt=0; attempt<6; attempt++) {
+      const response=await fetch('/api/v1/auth/session',{method:'POST',headers:{authorization:'Telegram '+telegramProof},signal:scope.signal});
+      data=await response.json(); scope.assertCurrent();
+      if(!response.ok) throw new Error(data.error || 'Could not sign in.');
+      if(!data.needsPhone) break;
+      if(attempt<5) await new Promise(resolve=>setTimeout(resolve,800));
+    }
+    if(data?.needsPhone) throw new Error('Phone verification has not reached the app yet. Check the Telegram webhook, then try Refresh account again.');
     state.token=data.token || null;
   }
   if(state.token) state.me=await api('/me');
@@ -145,13 +180,15 @@ function checkout(product) {
   qty.addEventListener('input',updateSummary); updateSummary();
   form.append(append(text('div','','payment'),text('div','PAY THE STORE DIRECTLY','eyebrow'),text('h3',shop.payment_number),text('p',shop.payment_holder),text('p',shop.payment_note),button('Copy number',()=>navigator.clipboard.writeText(shop.payment_number))));
   const files=field(form,'attachments','Payment receipt and attachments','',{type:'file',accept:'image/jpeg,image/png,image/webp',multiple:true,required:true});
-  form.append(text('p','1–3 JPG, PNG or WebP images. Up to 1 MB each.','hint'));
+  form.append(text('p','1–3 JPG, PNG or WebP images. They are compressed before upload for faster checkout.','hint'));
   field(form,'note','Note to the shop','',{area:true,maxLength:500});
   form.addEventListener('input',()=>{requestKey=crypto.randomUUID();});
   formSubmit(form,'Submit order',async()=>{
     signedIn(); const selected=[...files.files];
-    if(!selected.length || selected.length>3 || selected.some(f=>f.size>1048576)) throw new Error('Attach 1–3 images up to 1 MB each.');
+    if(!selected.length || selected.length>3 || selected.some(f=>f.size>10*1048576)) throw new Error('Attach 1–3 images up to 10 MB each.');
     const body=new FormData(form); body.append('shopId',shop.id); body.append('productId',product.id);
+    body.delete('attachments');
+    for(const file of selected) body.append('attachments',await compressImage(file),file.name);
     const data=await api('/orders',{method:'POST',body,headers:{'idempotency-key':requestKey}});
     await catalog(); await history(); toast('Order saved. Your seller will review the payment.');
   });
